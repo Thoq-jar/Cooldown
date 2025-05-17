@@ -5,5 +5,3 @@ edition = "2024"
 
 [dependencies]
 notify-rust = "4"
-cocoa = "0.26.0"
-cacao = "0.3.2"
