@@ -1,7 +1,10 @@
 mod sh;
+mod constants;
+
+use crate::constants::{NAME, THRESHOLD, VERSION};
 
 fn main() {
-    println!("Starting Cooldown v{}...", env!("CARGO_PKG_VERSION"));
+    println!("Starting {} v{}...", NAME, VERSION);
 
     if sh::sh("macmon", "-h").contains("command not found") {
         println!("Macmon is not installed! Install it with `brew install macmon`");
@@ -15,19 +18,31 @@ fn main() {
     loop {
         let cpu_temp = sh::sh(
             "macmon",
-            "pipe -s 1 -i 500 | jq | grep \"cpu_temp_avg\""
-        ).replace(",", "").replace("\"cpu_temp_avg\":", "").trim().to_string();
+            "pipe -s 1 -i 500 | jq",
+        ).lines()
+            .find(|line| line.contains("cpu_temp_avg"))
+            .unwrap_or_default()
+            .replace(",", "")
+            .replace("\"cpu_temp_avg\":", "")
+            .trim()
+            .to_string();
 
         if cpu_temp.is_empty() {
             println!("Failed to get CPU temperature!");
+            continue;
         }
 
-        let cpu_temp: f32 = cpu_temp.parse::<f32>()
-            .expect("Failed to temp string to f32").round();
+        let cpu_temp: f32 = match cpu_temp.parse::<f32>() {
+            Ok(temp) => temp.round(),
+            Err(_) => {
+                println!("Failed to parse temperature: {}", cpu_temp);
+                continue;
+            }
+        };
 
         println!("Current CPU temperature: {}˚C", cpu_temp);
 
-        if cpu_temp > 95.0 && std::time::SystemTime::now()
+        if cpu_temp > THRESHOLD && std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap()
             .as_secs() - last_notification_time >= 60 {
@@ -43,7 +58,7 @@ fn main() {
 fn push_notification(message: &str) {
     use notify_rust::Notification;
     Notification::new()
-        .summary(env!("CARGO_PKG_NAME"))
+        .summary(NAME)
         .body(message)
         .show().expect("Failed to push notification");
 }
